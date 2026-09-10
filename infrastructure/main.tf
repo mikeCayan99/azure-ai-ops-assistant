@@ -10,3 +10,4 @@ resource "azurerm_container_registry" "main" {
   sku                 = "Basic"
   admin_enabled       = false
 }
+
