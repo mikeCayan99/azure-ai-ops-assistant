@@ -1,0 +1,15 @@
+.venv/
+.git/
+.github/
+__pycache__/
+*.pyc
+
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+.env
+.env.*
+
+.vscode/
