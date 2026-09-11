@@ -54,4 +54,14 @@ resource "azurerm_container_app" "main" {
     }
   }
 
+  ingress {
+    external_enabled           = true
+    target_port                = 8000
+    allow_insecure_connections = false
+
+
+    traffic_weight {
+      percentage = 100
+    }
+  }
 }
