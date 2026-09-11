@@ -39,7 +39,16 @@ resource "azurerm_container_app" "main" {
   revision_mode = "Single"
 
   identity {
-    type = "SystemAssigned"
+    type = "UserAssigned"
+
+    identity_ids = [
+      azurerm_user_assigned_identity.main.id
+    ]
+  }
+
+  registry {
+    server   = azurerm_container_registry.main.login_server
+    identity = azurerm_user_assigned_identity.main.id
   }
 
   template {
@@ -64,4 +73,17 @@ resource "azurerm_container_app" "main" {
       percentage = 100
     }
   }
+}
+
+
+resource "azurerm_role_assignment" "role" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+resource "azurerm_user_assigned_identity" "main" {
+  location            = azurerm_resource_group.main.location
+  name                = "id-ai-ops-api-dev"
+  resource_group_name = azurerm_resource_group.main.name
 }
