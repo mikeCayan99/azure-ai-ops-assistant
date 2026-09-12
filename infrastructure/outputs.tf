@@ -19,3 +19,7 @@ output "resource_group_name" {
   value       = azurerm_resource_group.main.name
 }
 
+output "github_identity_client_id" {
+  description = "Client ID of the GitHub managed identity"
+  value       = azurerm_user_assigned_identity.github.client_id
+}
