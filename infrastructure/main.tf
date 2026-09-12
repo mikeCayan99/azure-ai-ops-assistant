@@ -31,50 +31,6 @@ resource "azurerm_container_app_environment" "main" {
   public_network_access = "Enabled"
 }
 
-resource "azurerm_container_app" "main" {
-  name                         = "ca-ai-ops-api-dev"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  resource_group_name          = azurerm_resource_group.main.name
-
-  revision_mode = "Single"
-
-  identity {
-    type = "UserAssigned"
-
-    identity_ids = [
-      azurerm_user_assigned_identity.main.id
-    ]
-  }
-
-  registry {
-    server   = azurerm_container_registry.main.login_server
-    identity = azurerm_user_assigned_identity.main.id
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 1
-
-    container {
-      name   = "api"
-      image  = "acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:v1"
-      cpu    = 0.25
-      memory = "0.5Gi"
-    }
-  }
-
-  ingress {
-    external_enabled           = true
-    target_port                = 8000
-    allow_insecure_connections = false
-
-
-    traffic_weight {
-      percentage = 100
-    }
-  }
-}
-
 
 resource "azurerm_role_assignment" "role" {
   scope                = azurerm_container_registry.main.id
