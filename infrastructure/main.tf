@@ -59,9 +59,9 @@ resource "azurerm_federated_identity_credential" "github" {
 }
 
 resource "azurerm_role_assignment" "acr_push" {
-  scope                 = azurerm_container_registry.main.id
-  role_definition_name  = "AcrPush"
-  principal_id          = azurerm_user_assigned_identity.github.principal_id
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPush"
+  principal_id         = azurerm_user_assigned_identity.github.principal_id
 }
 
 resource "azurerm_role_assignment" "github_container_app_contributor" {

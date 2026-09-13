@@ -74,3 +74,14 @@ jobs:
             --name ca-ai-ops-api-dev \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
             --image acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:${{ github.sha }}
+
+      
+      - name: Health Check
+        run: |
+          APP_FQDN=$(az containerapp show \
+            --name ca-ai-ops-api-dev \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+
+          curl --fail "https://${APP_FQDN}/health"      
