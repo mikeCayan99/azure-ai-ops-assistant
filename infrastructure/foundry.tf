@@ -56,3 +56,19 @@ resource "azurerm_role_assignment" "main" {
   role_definition_name = "Cognitive Services User"
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
+
+resource "azurerm_cognitive_deployment" "main" {
+  name                 = "gpt-5.4-mini"
+  cognitive_account_id = azurerm_cognitive_account.main.id
+
+  model {
+    format  = "OpenAI"
+    name    = "gpt-5.4-mini"
+    version = "2026-03-17"
+  }
+
+  sku {
+    name     = "GlobalStandard"
+    capacity = 500
+  }
+}
