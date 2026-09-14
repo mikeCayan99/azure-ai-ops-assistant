@@ -50,3 +50,9 @@ resource "azurerm_cognitive_account_project" "main" {
   }
 
 }
+
+resource "azurerm_role_assignment" "main" {
+  scope                = azurerm_cognitive_account.main.id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
