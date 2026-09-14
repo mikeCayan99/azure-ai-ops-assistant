@@ -1,52 +1,58 @@
-🚧 Work in progress
-
 # Azure AI Ops Assistant
 
-Cloud-native AI operations platform built on Microsoft Azure with Terraform, Docker, GitHub Actions and Azure Container Apps.
+Cloud-native AI-assisted operations API built on Microsoft Azure using Terraform, Docker, GitHub Actions, Azure Container Apps and Azure AI Foundry.
 
-The project provides a containerized Python API as the foundation for an AI-assisted operations platform. Infrastructure is provisioned using Infrastructure as Code, while application builds and deployments are automated through GitHub Actions using OpenID Connect authentication.
+The project provides a containerized FastAPI service that accepts infrastructure or application log messages and sends them to an Azure-hosted language model for operational analysis.
+
+Infrastructure is provisioned with Terraform, application deployments are automated through GitHub Actions, and authentication between services uses Microsoft Entra ID, OpenID Connect and Azure Managed Identities instead of long-lived credentials.
 
 ---
 
 ## Architecture
 
 ```text
-                        GitHub Repository
-                               │
-                               │ Push / Pull Request
-                               ▼
-                     GitHub Actions Pipeline
-                               │
+                         GitHub Repository
+                                │
+                                │ Manual deployment
+                                ▼
+                      GitHub Actions Pipeline
+                                │
                          OIDC Authentication
-                               │
-                               ▼
-                   Managed Identity (GitHub)
-                               │
-                         AcrPush Role
-                               │
-                               ▼
-                    ┌────────────────────┐
-                    │ Azure Container    │
-                    │ Registry (ACR)     │
-                    │                    │
-                    │ azure-ai-ops-      │
-                    │ assistant          │
-                    └─────────┬──────────┘
+                                │
+                                ▼
+                    GitHub Managed Identity
+                                │
+                           AcrPush
+                                │
+                                ▼
+                 ┌─────────────────────────┐
+                 │ Azure Container Registry│
+                 │                         │
+                 │ Docker Image            │
+                 └────────────┬────────────┘
                               │
-                         AcrPull
+                           AcrPull
                               │
                               ▼
                  ┌─────────────────────────┐
                  │ Azure Container Apps    │
                  │                         │
-                 │ ca-ai-ops-api-dev       │
-                 │                         │
                  │ FastAPI / Uvicorn       │
                  └────────────┬────────────┘
                               │
+                       Managed Identity
+                              │
+                 Cognitive Services User
+                              │
                               ▼
-                    Log Analytics
-                    Workspace
+                 ┌─────────────────────────┐
+                 │ Azure AI Foundry        │
+                 │                         │
+                 │ gpt-5.4-mini            │
+                 └─────────────────────────┘
+                              │
+                              ▼
+                      Log Analytics
 ```
 
 ---
@@ -57,68 +63,28 @@ The project provides a containerized Python API as the foundation for an AI-assi
 |---|---|
 | Cloud Platform | Microsoft Azure |
 | Infrastructure as Code | Terraform |
-| Container Runtime | Azure Container Apps |
-| Container Registry | Azure Container Registry |
+| AI Platform | Azure AI Foundry |
+| AI Model | GPT-5.4-mini |
 | Application | Python / FastAPI |
 | Application Server | Uvicorn |
 | Containerization | Docker |
+| Container Runtime | Azure Container Apps |
+| Container Registry | Azure Container Registry |
 | CI/CD | GitHub Actions |
 | Authentication | Microsoft Entra ID / OIDC |
-| Identity | Azure Managed Identities |
+| Workload Identity | Azure Managed Identities |
 | Monitoring | Azure Log Analytics |
 | Source Control | Git / GitHub |
 
 ---
 
-## Azure Infrastructure
+## Core Functionality
 
-The infrastructure is provisioned with Terraform.
+The API exposes two endpoints.
 
-### Resource Group
+### Health Check
 
-```text
-rg-ai-ops-dev
-```
-
-### Container Registry
-
-```text
-acraiopsmikedev
-```
-
-The registry stores versioned container images for the API.
-
-Images are tagged using the corresponding Git commit SHA, allowing deployments to reference an immutable application version.
-
-### Container Apps Environment
-
-```text
-cae-ai-ops-dev
-```
-
-Provides the managed runtime environment for Azure Container Apps.
-
-### Container App
-
-```text
-ca-ai-ops-api-dev
-```
-
-The API runs as a containerized FastAPI application.
-
-Current configuration:
-
-- External HTTP ingress
-- Target port: `8000`
-- Minimum replicas: `0`
-- Maximum replicas: `1`
-- CPU: `0.25`
-- Memory: `0.5 Gi`
-- Scale-to-zero enabled
-
-The application exposes a health endpoint:
-
-```text
+```http
 GET /health
 ```
 
@@ -130,72 +96,157 @@ Example response:
 }
 ```
 
+### Log Analysis
+
+```http
+POST /analyze
+```
+
+Example request:
+
+```json
+{
+  "log": "CRITICAL: API returned HTTP 503 for 12 consecutive requests. Service: payment-api"
+}
+```
+
+The API forwards the supplied log message to the deployed Azure AI model and returns the generated operational analysis.
+
+Example response:
+
+```json
+{
+  "analysis": "This log indicates a service availability problem..."
+}
+```
+
+The log message is supplied dynamically through the request body rather than being hardcoded in the application.
+
 ---
 
-## Managed Identities
+## Azure AI Foundry
 
-The platform uses Azure Managed Identities instead of storing registry credentials inside the application or CI/CD pipeline.
+The project uses Azure AI Foundry as the AI backend.
 
-### GitHub Actions Identity
-
-```text
-id-ai-ops-github-dev
-```
-
-Used by GitHub Actions to authenticate against Azure through OIDC.
-
-Assigned role:
+Terraform manages:
 
 ```text
-AcrPush
+Azure AI Services Account
+        │
+        ▼
+Azure AI Foundry Project
+        │
+        ▼
+GPT-5.4-mini Deployment
 ```
 
-This allows the CI/CD pipeline to push container images to Azure Container Registry.
+Current model deployment:
 
-### Container App Identity
+```text
+Model: gpt-5.4-mini
+Deployment Type: GlobalStandard
+```
+
+The FastAPI application accesses the model through the OpenAI SDK using Microsoft Entra ID authentication.
+
+No API key is stored in the application.
+
+---
+
+## Managed Identity Authentication
+
+The runtime communication path is:
+
+```text
+Azure Container App
+        │
+        ▼
+User Assigned Managed Identity
+        │
+        ▼
+Microsoft Entra ID
+        │
+        ▼
+Azure AI Foundry
+        │
+        ▼
+GPT-5.4-mini
+```
+
+The Container App uses:
 
 ```text
 id-ai-ops-api-dev
 ```
 
-Used by the Azure Container App to authenticate against Azure resources without storing registry passwords.
-
-Assigned role:
+The identity is assigned the Azure RBAC role:
 
 ```text
-AcrPull
+Cognitive Services User
 ```
 
-This allows the Container App to pull its container image from ACR.
+This allows the application to obtain an Entra ID token and invoke the deployed AI model without storing an Azure AI API key.
 
 ---
 
-## CI/CD
+## Azure Infrastructure
 
-GitHub Actions handles the application build and deployment workflow.
+The Azure infrastructure is provisioned through Terraform.
 
-### Deployment Flow
+Core resources include:
 
 ```text
-Git Push
-   │
-   ▼
-GitHub Actions
-   │
-   ├── Checkout repository
-   │
-   ├── Authenticate with Azure using OIDC
-   │
-   ├── Build Docker image
-   │
-   ├── Push image to Azure Container Registry
-   │
-   ├── Create / update Azure Container App
-   │
-   └── Run deployment health check
+Resource Group
+Azure Container Registry
+Log Analytics Workspace
+Azure Container Apps Environment
+User Assigned Managed Identities
+Federated Identity Credential
+Azure RBAC Role Assignments
+Storage Account
+Azure Key Vault
+Azure AI Services Account
+Azure AI Foundry Project
+GPT-5.4-mini Deployment
 ```
 
-The workflow uses the Git commit SHA as the container image tag.
+The project also includes imported Azure resources that were initially explored manually in the Azure Portal and subsequently brought under Terraform management.
+
+This demonstrates a common Infrastructure-as-Code workflow:
+
+```text
+Existing Azure Resource
+        │
+        ▼
+Terraform Resource Definition
+        │
+        ▼
+terraform import
+        │
+        ▼
+Terraform State
+        │
+        ▼
+terraform plan
+```
+
+---
+
+## Docker
+
+The FastAPI application is packaged as a Docker image.
+
+The image contains:
+
+```text
+Python runtime
+FastAPI application
+Python dependencies
+Uvicorn application server
+Health check
+```
+
+GitHub Actions builds a new image for each deployment and tags it with the corresponding Git commit SHA.
 
 Example:
 
@@ -210,14 +261,61 @@ Git Commit
      ↓
 Docker Image
      ↓
-Container App Revision
+Container App Deployment
 ```
 
 ---
 
-## Authentication & Security
+## CI/CD
 
-The deployment pipeline uses GitHub Actions OpenID Connect instead of long-lived Azure client secrets.
+Application deployment is automated through GitHub Actions.
+
+The deployment workflow performs:
+
+```text
+Manual Workflow Trigger
+        │
+        ▼
+Checkout Repository
+        │
+        ▼
+Authenticate to Azure using OIDC
+        │
+        ▼
+Resolve API Managed Identity Client ID
+        │
+        ▼
+Build Docker Image
+        │
+        ▼
+Authenticate to ACR
+        │
+        ▼
+Push Docker Image
+        │
+        ▼
+Create / Update Container App
+        │
+        ▼
+Configure Managed Identity
+        │
+        ▼
+Health Check
+```
+
+The workflow uses:
+
+```yaml
+workflow_dispatch
+```
+
+Deployments are therefore triggered manually through GitHub Actions.
+
+---
+
+## GitHub OIDC Authentication
+
+GitHub Actions authenticates against Azure using OpenID Connect rather than a stored Azure client secret.
 
 ```text
 GitHub Actions
@@ -227,24 +325,41 @@ GitHub Actions
 Microsoft Entra ID
       │
       ▼
-Managed Identity
+GitHub Managed Identity
       │
       ▼
-Azure Resource
+Azure Resources
 ```
 
-No Azure client secret is required for the GitHub Actions authentication flow.
+The GitHub deployment identity can push images to Azure Container Registry and manage the application deployment.
 
-Container Registry access is controlled through Azure RBAC:
+This avoids storing long-lived Azure authentication secrets inside GitHub.
 
-- `AcrPush` for the CI/CD identity
-- `AcrPull` for the Container App identity
+---
+
+## Container App Configuration
+
+The application runs in Azure Container Apps.
+
+Configuration:
+
+```text
+External HTTP ingress
+Target port: 8000
+Minimum replicas: 0
+Maximum replicas: 1
+CPU: 0.25
+Memory: 0.5 Gi
+Scale-to-zero enabled
+```
+
+Scale-to-zero keeps the development environment cost-efficient when the application is not being used.
 
 ---
 
 ## Monitoring
 
-Application and platform logs are integrated with Azure Log Analytics.
+The Container Apps environment is integrated with Azure Log Analytics.
 
 ```text
 Container App
@@ -253,67 +368,72 @@ Container App
 Log Analytics
       │
       ├── Application logs
-      ├── System logs
-      └── Query / analysis
+      ├── Platform logs
+      └── Operational troubleshooting
 ```
 
-The Container App also provides a live log stream for operational troubleshooting.
-
----
-
-## Health Checks
-
-The deployment pipeline validates the application after deployment.
-
-The API health endpoint is:
+The deployment pipeline also performs an HTTP health check against:
 
 ```text
 GET /health
 ```
 
-Expected HTTP status:
+A successful deployment must return:
 
 ```text
 200 OK
 ```
 
-This provides a basic deployment validation before considering the deployment successful.
-
 ---
 
 ## Infrastructure as Code
 
-All Azure infrastructure is managed through Terraform.
+Terraform is used to manage the Azure infrastructure.
 
 Typical workflow:
 
 ```bash
 terraform fmt
-terraform init
 terraform validate
 terraform plan
 terraform apply
 ```
 
-Infrastructure changes are reviewed through Git branches and pull requests before being merged into `main`.
+Resources that were initially created manually during Azure AI Foundry exploration were subsequently imported into Terraform state and are now managed as code.
+
+Infrastructure changes are developed through feature branches and merged into `main` using Pull Requests.
 
 ---
 
 ## Git Workflow
 
-Feature and fix branches are used for infrastructure and application changes.
-
-Example:
+Development follows a feature-branch workflow.
 
 ```text
 main
  │
- ├── feature/...
- │
- └── fix/...
+ ├── feature/foundry-infra
+ ├── feature/foundry-model-rbac
+ ├── feature/foundry-model-deployment
+ ├── feature/foundry-api-integration
+ └── feature/dynamic-log-analysis
 ```
 
-Changes are reviewed and merged through Pull Requests.
+Typical workflow:
+
+```text
+Create branch
+     ↓
+Implement change
+     ↓
+Commit
+     ↓
+Push
+     ↓
+Pull Request
+     ↓
+Merge into main
+```
 
 ---
 
@@ -331,9 +451,11 @@ azure-ai-ops-assistant/
 │
 ├── infrastructure/
 │   ├── main.tf
+│   ├── foundry.tf
 │   ├── variables.tf
 │   ├── outputs.tf
-│   └── ...
+│   ├── providers.tf
+│   └── versions.tf
 │
 ├── Dockerfile
 ├── requirements.txt
@@ -345,38 +467,115 @@ azure-ai-ops-assistant/
 
 ## Current Capabilities
 
-- FastAPI-based API
+- FastAPI REST API
+- Dynamic log analysis endpoint
+- Azure AI Foundry integration
+- GPT-5.4-mini model deployment
+- Entra ID authentication for AI access
+- User Assigned Managed Identity
+- Azure RBAC
+- Terraform Infrastructure as Code
+- Terraform import workflow
 - Dockerized application
-- Azure Container Registry integration
-- Azure Container Apps deployment
-- Scale-to-zero configuration
-- Managed Identity authentication
+- Azure Container Registry
+- Azure Container Apps
 - GitHub Actions CI/CD
 - GitHub OIDC authentication
-- Azure RBAC for registry access
-- Automated deployment health check
+- Immutable image tagging using Git SHAs
+- Automated deployment health checks
 - Azure Log Analytics integration
-- Git-based deployment traceability
+- Scale-to-zero configuration
 
 ---
 
-## Roadmap
+## Security
 
-Planned platform capabilities include:
+The project avoids long-lived Azure credentials where possible.
 
-- AI-assisted operational analysis
-- Azure AI / Foundry integration
-- Python SDK integration
-- Structured incident and system analysis
-- Additional observability capabilities
-- Expanded CI/CD validation
-- Container and application security improvements
+Authentication mechanisms include:
+
+```text
+GitHub Actions → Azure
+OIDC + Managed Identity
+
+Container App → Azure AI Foundry
+Managed Identity + Entra ID + RBAC
+
+Container App → ACR
+Managed Identity + AcrPull
+
+GitHub Actions → ACR
+Managed Identity + AcrPush
+```
+
+No Azure AI API key is required by the FastAPI application.
+
+---
+
+## Cost Optimization
+
+The project is designed as a development and portfolio environment with a strong focus on keeping Azure costs low.
+
+Measures include:
+
+- Azure Container Apps scale-to-zero
+- Maximum of one application replica
+- Small CPU and memory allocation
+- ACR Basic tier
+- Standard LRS storage
+- Pay-as-you-go AI model usage
+- Infrastructure destroyed when not actively being used
+
+The complete environment can be recreated using Terraform and the deployment pipeline when further development or testing is required.
+
+---
+
+## Future Improvements
+
+Potential improvements include:
+
+- Structured AI responses
+- Severity and category fields
+- Recommended remediation actions
+- API error handling
+- Additional automated tests
+- Expanded observability
+- Additional CI/CD validation
+- Application security improvements
+
+These are intentionally kept outside the current MVP.
+
+---
+
+## Project Status
+
+The core MVP is complete.
+
+The project demonstrates an end-to-end cloud-native AI application workflow:
+
+```text
+Terraform
+   ↓
+Azure Infrastructure
+   ↓
+Docker
+   ↓
+Azure Container Registry
+   ↓
+Azure Container Apps
+   ↓
+Managed Identity
+   ↓
+Azure AI Foundry
+   ↓
+GPT-5.4-mini
+```
+
+A client can submit a log message to the deployed FastAPI API and receive an AI-generated operational analysis from the Azure-hosted model.
 
 ---
 
 ## Environment
-
-Current environment:
 
 ```text
 Environment: Development
