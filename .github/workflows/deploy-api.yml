@@ -22,6 +22,15 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get API Managed Identity Client ID
+        run: |
+          API_CLIENT_ID=$(az identity show \
+            --ids "${{ vars.AZURE_MANAGED_IDENTITY_ID }}" \
+            --query clientId \
+            --output tsv)
+
+          echo "API_CLIENT_ID=$API_CLIENT_ID" >> "$GITHUB_ENV"    
+
       - name: Build Docker Image
         run: docker build -t azure-ai-ops-assistant:${{ github.sha }} .
 
@@ -58,6 +67,7 @@ jobs:
             --image acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:${{ github.sha }} \
             --registry-identity ${{ vars.AZURE_MANAGED_IDENTITY_ID }} \
             --user-assigned ${{ vars.AZURE_MANAGED_IDENTITY_ID }} \
+            --env-vars AZURE_CLIENT_ID=$API_CLIENT_ID \
             --ingress external \
             --target-port 8000 \
             --min-replicas 0 \
@@ -72,7 +82,8 @@ jobs:
           az containerapp update \
             --name ca-ai-ops-api-dev \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --image acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:${{ github.sha }}
+            --image acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:${{ github.sha }} \
+            --set-env-vars AZURE_CLIENT_ID=$API_CLIENT_ID
 
       
       - name: Health Check
