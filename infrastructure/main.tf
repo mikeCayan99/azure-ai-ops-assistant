@@ -18,6 +18,7 @@ resource "azurerm_log_analytics_workspace" "main" {
 
   sku               = "PerGB2018"
   retention_in_days = 30
+  daily_quota_gb    = 0.05
 }
 
 resource "azurerm_container_app_environment" "main" {

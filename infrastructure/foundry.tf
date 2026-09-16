@@ -1,12 +1,14 @@
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "main" {
-  name                     = "aiopsstorageacct"
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-
+  name                            = "aiopsstorageacct"
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  allow_nested_items_to_be_public = false
+  local_user_enabled              = false
+  shared_access_key_enabled       = false
   tags = {
     environment = "aiopsassistant"
   }
@@ -32,6 +34,7 @@ resource "azurerm_cognitive_account" "main" {
   sku_name                   = "S0"
   project_management_enabled = true
   custom_subdomain_name      = "aiopscognitiveacct-subdomain"
+  local_auth_enabled         = false
 
   identity {
     type = "SystemAssigned"
@@ -69,6 +72,6 @@ resource "azurerm_cognitive_deployment" "main" {
 
   sku {
     name     = "GlobalStandard"
-    capacity = 500
+    capacity = 1
   }
 }
