@@ -69,6 +69,6 @@ resource "azurerm_cognitive_deployment" "main" {
 
   sku {
     name     = "GlobalStandard"
-    capacity = 500
+    capacity = 1
   }
 }

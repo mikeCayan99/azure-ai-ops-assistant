@@ -56,7 +56,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      
       - name: Deploy Container App
         if: steps.check_app.outputs.exists == 'false'
         run: |
@@ -68,8 +67,6 @@ jobs:
             --registry-identity ${{ vars.AZURE_MANAGED_IDENTITY_ID }} \
             --user-assigned ${{ vars.AZURE_MANAGED_IDENTITY_ID }} \
             --env-vars AZURE_CLIENT_ID=$API_CLIENT_ID \
-            --ingress external \
-            --target-port 8000 \
             --min-replicas 0 \
             --max-replicas 1 \
             --cpu 0.25 \
@@ -85,7 +82,36 @@ jobs:
             --image acraiopsmikedev.azurecr.io/azure-ai-ops-assistant:${{ github.sha }} \
             --set-env-vars AZURE_CLIENT_ID=$API_CLIENT_ID
 
-      
+      - name: Configure Container App authentication
+        run: |
+          TENANT_ID="${{ vars.AZURE_TENANT_ID }}"
+
+          az containerapp auth microsoft update \
+            --name ca-ai-ops-api-dev \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --client-id ${{ vars.AZURE_AUTH_CLIENT_ID }} \
+            --client-secret "${{ secrets.AZURE_AI_OPS_AUTH_CLIENT_SECRET }}" \
+            --tenant-id "$TENANT_ID" \
+            --issuer "https://login.microsoftonline.com/$TENANT_ID/v2.0" \
+            --allowed-audiences api://${{ vars.AZURE_AUTH_CLIENT_ID }} \
+            --yes
+
+          az containerapp auth update \
+            --name ca-ai-ops-api-dev \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --enabled true \
+            --unauthenticated-client-action Return401 \
+            --excluded-paths /health
+
+      - name: Enable external ingress
+        run: |
+          az containerapp ingress enable \
+            --name ca-ai-ops-api-dev \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --type external \
+            --target-port 8000 \
+            --transport auto
+
       - name: Health Check
         run: |
           APP_FQDN=$(az containerapp show \
@@ -94,4 +120,4 @@ jobs:
             --query properties.configuration.ingress.fqdn \
             --output tsv)
 
-          curl --fail "https://${APP_FQDN}/health"      
+          curl --fail "https://${APP_FQDN}/health"
