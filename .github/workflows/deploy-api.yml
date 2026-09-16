@@ -99,7 +99,6 @@ jobs:
             --client-id ${{ vars.AZURE_AUTH_CLIENT_ID }} \
             --client-secret "${{ secrets.AZURE_AI_OPS_AUTH_CLIENT_SECRET }}" \
             --tenant-id "$TENANT_ID" \
-            --issuer "https://login.microsoftonline.com/$TENANT_ID/v2.0" \
             --allowed-audiences api://${{ vars.AZURE_AUTH_CLIENT_ID }} \
             --yes
 
