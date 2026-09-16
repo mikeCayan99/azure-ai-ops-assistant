@@ -126,4 +126,9 @@ jobs:
             --query properties.configuration.ingress.fqdn \
             --output tsv)
 
-          curl --fail "https://${APP_FQDN}/health"
+          curl \
+            --fail \
+            --retry 10 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "https://${APP_FQDN}/health"
