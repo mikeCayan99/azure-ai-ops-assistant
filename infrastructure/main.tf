@@ -74,7 +74,12 @@ resource "azurerm_role_assignment" "acr_push" {
 
 resource "azurerm_role_assignment" "github_container_app_contributor" {
   scope                = azurerm_resource_group.main.id
-  role_definition_name = "Contributor"
+  role_definition_name = "Container Apps Contributor"
   principal_id         = azurerm_user_assigned_identity.github.principal_id
 }
 
+resource "azurerm_role_assignment" "github_managed_identity_operator" {
+  scope                = azurerm_user_assigned_identity.main.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = azurerm_user_assigned_identity.github.principal_id
+}
